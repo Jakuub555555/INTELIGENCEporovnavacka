@@ -1,8 +1,8 @@
 // script.js
 // Match Intelligence — kompletní skript (parsování, analýza, profesionální tabulkové porovnání,
-// Poisson odhad, sekce společných soupeřů, head-to-head, historie)
-// Upraveno: odstraněno Vážené skóre; společné soupeře a H2H vykreslujeme v tabulkách s analýzou;
-// Textový report obsahuje všechny informace z tabulek a další detaily pro snadné kopírování.
+// Poisson odhad, tabulky společných soupeřů, head-to-head, historie)
+// Verze A: bez váženého skóre, s opravou metrik, kde je NIŽŠÍ hodnota lepší,
+// s kompletním textovým reportem (přepis tabulek).
 
 // -------------------- Utility / formátování --------------------
 function nowIso() { return new Date().toISOString(); }
@@ -73,13 +73,11 @@ function parseTeamBlock(text) {
   const lines = (text || '').split('\n').map(l => l.trim()).filter(l => l !== "");
   if (!lines.length) return null;
 
-  // Název týmu: pokusíme se najít "Last matches: NAME" nebo první řádek
   let name = "Tým";
   const first = lines[0];
   const matchName = first.match(/Last matches:\s*(.+)$/i);
   if (matchName) name = matchName[1].trim();
 
-  // Najdeme index řádku "Seznam zápasů"
   const idxList = lines.findIndex(l => /^Seznam zápasů/i.test(l));
   if (idxList === -1) return { name, matches: [], stats: {} };
 
@@ -132,7 +130,6 @@ function parseTeamBlock(text) {
 
   if (!matchesRaw.length) return { name, matches: [], stats: {} };
 
-  // seřadíme podle data – od nejnovějšího po nejstarší
   const matches = matchesRaw.slice().sort((a, b) => b.dateObj - a.dateObj);
   const n = matches.length;
 
@@ -220,8 +217,8 @@ function parseTeamBlock(text) {
   let trend = "stabilní";
   if (matches.length >= 6) {
     const half = Math.floor(matches.length / 2);
-    const firstHalf = matches.slice(half);      // starší
-    const secondHalf = matches.slice(0, half);  // novější
+    const firstHalf = matches.slice(half);
+    const secondHalf = matches.slice(0, half);
     const ptsFirst = firstHalf.reduce((s, m) => s + (m.res === "W" ? 3 : m.res === "D" ? 1 : 0), 0) / firstHalf.length;
     const ptsSecond = secondHalf.reduce((s, m) => s + (m.res === "W" ? 3 : m.res === "D" ? 1 : 0), 0) / secondHalf.length;
     if (ptsSecond > ptsFirst + 0.3) trend = "rostoucí";
@@ -464,7 +461,7 @@ function computeMatchProbabilities(A, B) {
   };
 }
 
-// -------------------- Vykreslení tabulek (hlavní + společní soupeři + H2H) --------------------
+// -------------------- Vykreslení tabulek --------------------
 function renderComparisonTable(home, away) {
   const container = document.getElementById('reportOutput');
   const probSummary = document.getElementById('probSummary');
@@ -540,6 +537,14 @@ function renderComparisonTable(home, away) {
 
   const probsGlobal = computeMatchProbabilities(home.stats, away.stats);
 
+  // metriky, kde je NIŽŠÍ číslo lepší
+  const lowerIsBetter = [
+    "Počet proher",
+    "Průměr inkasovaných gólů na zápas",
+    "Celkový počet inkasovaných gólů",
+    "Podíl proher (%)"
+  ];
+
   let html = `<table class="mi-compare-table"><thead><tr>
     <th>Parametr</th>
     <th>${escapeHtml(home.name)}</th>
@@ -555,21 +560,23 @@ function renderComparisonTable(home, away) {
 
     const nH = tryParseNumber(String(hVal).replace(/\s/g,''));
     const nA = tryParseNumber(String(aVal).replace(/\s/g,''));
+
     let resultClass = "mi-compare-na";
     let resultText = "N/A";
 
     if (nH !== null && nA !== null) {
-      if (nH > nA) { resultClass = "mi-compare-home"; resultText = "Domácí"; homeScore++; }
-      else if (nA > nH) { resultClass = "mi-compare-away"; resultText = "Hosté"; awayScore++; }
-      else { resultClass = "mi-compare-even"; resultText = "Vyrovnané"; }
-    } else {
-      if (hVal && aVal && hVal !== "—" && aVal !== "—") {
-        if (String(hVal).length > String(aVal).length) { resultClass = "mi-compare-home"; resultText = "Domácí"; homeScore++; }
-        else if (String(aVal).length > String(hVal).length) { resultClass = "mi-compare-away"; resultText = "Hosté"; awayScore++; }
+      if (lowerIsBetter.includes(label)) {
+        if (nH < nA) { resultClass = "mi-compare-home"; resultText = "Domácí"; homeScore++; }
+        else if (nA < nH) { resultClass = "mi-compare-away"; resultText = "Hosté"; awayScore++; }
         else { resultClass = "mi-compare-even"; resultText = "Vyrovnané"; }
       } else {
-        resultClass = "mi-compare-na"; resultText = "N/A";
+        if (nH > nA) { resultClass = "mi-compare-home"; resultText = "Domácí"; homeScore++; }
+        else if (nA > nH) { resultClass = "mi-compare-away"; resultText = "Hosté"; awayScore++; }
+        else { resultClass = "mi-compare-even"; resultText = "Vyrovnané"; }
       }
+    } else {
+      resultClass = "mi-compare-na";
+      resultText = "N/A";
     }
 
     html += `<tr>
@@ -587,7 +594,7 @@ function renderComparisonTable(home, away) {
   html += `<tr class="mi-summary-row"><td>Souhrn</td><td colspan="2">${escapeHtml(overall)}</td><td></td></tr>`;
   html += `</tbody></table>`;
 
-  // --- Tabulka: společné soupeři (s analýzou kdo vede lépe) ---
+  // --- Tabulka: společné soupeři ---
   const commonData = getCommonOpponentsData(home, away);
   if (commonData.rows.length) {
     html += `<div style="margin-top:12px"><div style="font-weight:700;color:var(--text-dim);font-size:12px;margin-bottom:8px">Výkonnost proti společným soupeřům</div>`;
@@ -600,25 +607,32 @@ function renderComparisonTable(home, away) {
     for (const r of commonData.rows) {
       const homeCell = `${r.a.lines.map(l => `${l.date} ${l.score} ${resToCz(l.res)}`).join('\n')}\n\nBody: ${r.a.pts} • Skóre: ${r.a.gf}:${r.a.ga} • Bilance: ${r.a.w}-${r.a.d}-${r.a.l}`;
       const awayCell = `${r.b.lines.map(l => `${l.date} ${l.score} ${resToCz(l.res)}`).join('\n')}\n\nBody: ${r.b.pts} • Skóre: ${r.b.gf}:${r.b.ga} • Bilance: ${r.b.w}-${r.b.d}-${r.b.l}`;
+      const badgeClass =
+        r.better === home.name ? 'mi-compare-home' :
+        r.better === away.name ? 'mi-compare-away' :
+        'mi-compare-even';
       html += `<tr>
         <td style="vertical-align:top">${escapeHtml(r.opponent)}</td>
         <td style="white-space:pre-wrap; font-family:var(--font-mono)">${escapeHtml(homeCell)}</td>
         <td style="white-space:pre-wrap; font-family:var(--font-mono)">${escapeHtml(awayCell)}</td>
-        <td style="text-align:center"><span class="result-badge ${r.better === home.name ? 'mi-compare-home' : r.better === away.name ? 'mi-compare-away' : 'mi-compare-even'}">${escapeHtml(r.better)}</span></td>
+        <td style="text-align:center"><span class="result-badge ${badgeClass}">${escapeHtml(r.better)}</span></td>
       </tr>`;
     }
-    // souhrn
     const s = commonData.summary;
+    const badgeClassSummary =
+      s.overallBetter === home.name ? 'mi-compare-home' :
+      s.overallBetter === away.name ? 'mi-compare-away' :
+      'mi-compare-even';
     html += `<tr class="mi-summary-row"><td>Souhrn společných soupeřů</td>
-      <td colspan="2"> ${escapeHtml(home.name)}: ${s.totalPtsA} bodů, skóre ${s.totalGfA}:${s.totalGaA} • ${escapeHtml(away.name)}: ${s.totalPtsB} bodů, skóre ${s.totalGfB}:${s.totalGaB}</td>
-      <td style="text-align:center"><span class="result-badge ${s.overallBetter === home.name ? 'mi-compare-home' : s.overallBetter === away.name ? 'mi-compare-away' : 'mi-compare-even'}">${escapeHtml(s.overallBetter)}</span></td>
+      <td colspan="2">${escapeHtml(home.name)}: ${s.totalPtsA} bodů, skóre ${s.totalGfA}:${s.totalGaA} • ${escapeHtml(away.name)}: ${s.totalPtsB} bodů, skóre ${s.totalGfB}:${s.totalGaB}</td>
+      <td style="text-align:center"><span class="result-badge ${badgeClassSummary}">${escapeHtml(s.overallBetter)}</span></td>
     </tr>`;
     html += `</tbody></table></div>`;
   } else {
     html += `<div style="margin-top:12px;color:var(--text-dim);font-size:13px">Společní soupeři: žádní nalezeni.</div>`;
   }
 
-  // --- Tabulka: head-to-head (s analýzou a konečným závěrem) ---
+  // --- Tabulka: head-to-head ---
   const h2hData = getHeadToHeadData(home, away);
   if (h2hData.rows.length) {
     html += `<div style="margin-top:12px"><div style="font-weight:700;color:var(--text-dim);font-size:12px;margin-bottom:8px">Vzájemné zápasy (head-to-head)</div>`;
@@ -637,16 +651,20 @@ function renderComparisonTable(home, away) {
       </tr>`;
     }
     const hs = h2hData.summary;
+    const badgeClassH2H =
+      hs.overall === home.name ? 'mi-compare-home' :
+      hs.overall === away.name ? 'mi-compare-away' :
+      'mi-compare-even';
     html += `<tr class="mi-summary-row"><td>Souhrn H2H</td>
       <td colspan="2">Zápasy: ${hs.totalMatches} • ${escapeHtml(home.name)} výhry: ${hs.winsA} • ${escapeHtml(away.name)} výhry: ${hs.winsB} • Remízy: ${hs.draws}</td>
-      <td style="text-align:center"><span class="result-badge ${hs.overall === home.name ? 'mi-compare-home' : hs.overall === away.name ? 'mi-compare-away' : 'mi-compare-even'}">${escapeHtml(hs.overall)}</span></td>
+      <td style="text-align:center"><span class="result-badge ${badgeClassH2H}">${escapeHtml(hs.overall)}</span></td>
     </tr>`;
     html += `</tbody></table></div>`;
   } else {
     html += `<div style="margin-top:12px;color:var(--text-dim);font-size:13px">Vzájemné zápasy: žádné nalezeny.</div>`;
   }
 
-  // --- Souhrn pravděpodobností (Poisson) ---
+  // --- Souhrn pravděpodobností ---
   if (probSummary) {
     const pA = probsGlobal.pAwin || 0;
     const pD = probsGlobal.pDraw || 0;
@@ -675,17 +693,15 @@ function renderComparisonTable(home, away) {
 
   container.innerHTML = html;
 
-  // doplníme textový report do textarea (kompletní, obsahuje vše z tabulek)
   const textArea = document.getElementById('promptOutput');
-  if (textArea) textArea.value = buildFullTextReport(home, away, commonData, h2hData, probsGlobal, overall);
+  if (textArea) textArea.value = buildFullTextReport(home, away, commonData, h2hData, probsGlobal);
 }
 
-// -------------------- Textový report (kompletní, obsahuje vše z tabulek) --------------------
+// -------------------- Textový report (kompletní přepis tabulek) --------------------
 function buildFullTextReport(home, away, commonData, h2hData, probsGlobal) {
   const A = home.stats;
   const B = away.stats;
 
-  // základní porovnání metrik (tabulka -> text)
   const mapFieldToLabel = {
     total: "Počet odehraných zápasů",
     wins: "Počet výher",
@@ -710,7 +726,6 @@ function buildFullTextReport(home, away, commonData, h2hData, probsGlobal) {
     totalGoalsAvg: "Průměrný celkový počet gólů v zápasech"
   };
 
-  // sestavíme textový blok s porovnáním
   let text = `MATCH INTELLIGENCE — KOMPLETNÍ REPORT\n\n`;
   text += `Tým A (domácí): ${home.name}\nTým B (hosté): ${away.name}\n\n`;
 
@@ -719,16 +734,20 @@ function buildFullTextReport(home, away, commonData, h2hData, probsGlobal) {
     const vA = A[field];
     const vB = B[field];
     if (vA === undefined && vB === undefined) continue;
-    let sA = (field === "winPct" || field === "drawPct" || field === "lossPct") ? pct(vA) :
-             (field === "avgGF" || field === "avgGA" || field === "avgPoints" || field === "avgPtsLast5" || field === "totalGoalsAvg") ? num(vA) :
-             (field === "last5" || field === "last10") ? lastLabel(vA) :
-             (field === "over25" || field === "bothScore") ? share(vA, A.total) :
-             (vA === undefined ? "—" : String(vA));
-    let sB = (field === "winPct" || field === "drawPct" || field === "lossPct") ? pct(vB) :
-             (field === "avgGF" || field === "avgGA" || field === "avgPoints" || field === "avgPtsLast5" || field === "totalGoalsAvg") ? num(vB) :
-             (field === "last5" || field === "last10") ? lastLabel(vB) :
-             (field === "over25" || field === "bothScore") ? share(vB, B.total) :
-             (vB === undefined ? "—" : String(vB));
+    let sA =
+      (field === "winPct" || field === "drawPct" || field === "lossPct") ? pct(vA) :
+      (field === "avgGF" || field === "avgGA" || field === "avgPoints" || field === "avgPtsLast5" || field === "totalGoalsAvg") ? num(vA) :
+      (field === "last5" || field === "last10") ? lastLabel(vA) :
+      (field === "over25" || field === "bothScore") ? share(vA, A.total) :
+      (vA === undefined ? "—" : String(vA));
+
+    let sB =
+      (field === "winPct" || field === "drawPct" || field === "lossPct") ? pct(vB) :
+      (field === "avgGF" || field === "avgGA" || field === "avgPoints" || field === "avgPtsLast5" || field === "totalGoalsAvg") ? num(vB) :
+      (field === "last5" || field === "last10") ? lastLabel(vB) :
+      (field === "over25" || field === "bothScore") ? share(vB, B.total) :
+      (vB === undefined ? "—" : String(vB));
+
     text += `${label}:\n - ${home.name}: ${sA}\n - ${away.name}: ${sB}\n`;
   }
 
@@ -737,15 +756,24 @@ function buildFullTextReport(home, away, commonData, h2hData, probsGlobal) {
     for (const r of commonData.rows) {
       text += `Soupeř: ${r.opponent}\n`;
       text += `${home.name} — Zápasy:\n`;
-      for (const ln of r.a.lines) text += `  • ${ln.date} ${ln.score} ${resToCz(ln.res)}\n`;
+      for (const ln of r.a.lines) {
+        text += `  • ${ln.date} ${ln.score} ${resToCz(ln.res)}\n`;
+      }
       text += `  Body: ${r.a.pts} • Skóre: ${r.a.gf}:${r.a.ga} • Bilance: ${r.a.w}-${r.a.d}-${r.a.l}\n`;
+
       text += `${away.name} — Zápasy:\n`;
-      for (const ln of r.b.lines) text += `  • ${ln.date} ${ln.score} ${resToCz(ln.res)}\n`;
+      for (const ln of r.b.lines) {
+        text += `  • ${ln.date} ${ln.score} ${resToCz(ln.res)}\n`;
+      }
       text += `  Body: ${r.b.pts} • Skóre: ${r.b.gf}:${r.b.ga} • Bilance: ${r.b.w}-${r.b.d}-${r.b.l}\n`;
+
       text += `Kdo lépe proti ${r.opponent}: ${r.better}\n\n`;
     }
     const s = commonData.summary;
-    text += `Souhrn společných soupeřů:\n - ${home.name}: ${s.totalPtsA} bodů, skóre ${s.totalGfA}:${s.totalGaA}\n - ${away.name}: ${s.totalPtsB} bodů, skóre ${s.totalGfB}:${s.totalGaB}\nLepší proti společným soupeřům: ${s.overallBetter}\n\n`;
+    text += `Souhrn společných soupeřů:\n`;
+    text += ` - ${home.name}: ${s.totalPtsA} bodů, skóre ${s.totalGfA}:${s.totalGaA}\n`;
+    text += ` - ${away.name}: ${s.totalPtsB} bodů, skóre ${s.totalGfB}:${s.totalGaB}\n`;
+    text += `Lepší proti společným soupeřům: ${s.overallBetter}\n\n`;
   } else {
     text += `Žádní společní soupeři nebyli nalezeni.\n\n`;
   }
@@ -756,7 +784,13 @@ function buildFullTextReport(home, away, commonData, h2hData, probsGlobal) {
       text += `${r.date} — ${r.match} — ${r.score} — z pohledu ${home.name}: ${r.fromA}\n`;
     }
     const hs = h2hData.summary;
-    text += `\nSouhrn H2H:\n - Počet zápasů: ${hs.totalMatches}\n - ${home.name} výhry: ${hs.winsA}\n - ${away.name} výhry: ${hs.winsB}\n - Remízy: ${hs.draws}\n - Celkové skóre z pohledu ${home.name}: ${hs.gfA}:${hs.gaA}\nKdo lépe ve vzájemných zápasech: ${hs.overall}\n\n`;
+    text += `\nSouhrn H2H:\n`;
+    text += ` - Počet zápasů: ${hs.totalMatches}\n`;
+    text += ` - ${home.name} výhry: ${hs.winsA}\n`;
+    text += ` - ${away.name} výhry: ${hs.winsB}\n`;
+    text += ` - Remízy: ${hs.draws}\n`;
+    text += ` - Celkové skóre z pohledu ${home.name}: ${hs.gfA}:${hs.gaA}\n`;
+    text += `Kdo lépe ve vzájemných zápasech: ${hs.overall}\n\n`;
   } else {
     text += `Žádné vzájemné zápasy nebyly nalezeny.\n\n`;
   }
@@ -768,8 +802,8 @@ function buildFullTextReport(home, away, commonData, h2hData, probsGlobal) {
   text += `Očekávané góly (domácí / hosté / celkem): ${fmtNumShort(probsGlobal.expA,2)} / ${fmtNumShort(probsGlobal.expB,2)} / ${fmtNumShort(probsGlobal.expectedGoals,2)}\n\n`;
 
   text += `--- Doplňující poznámky ---\n`;
-  text += `- Všechny odhady jsou orientační a vycházejí z jednoduchého Poissonova modelu kombinujícího průměr vstřelených a průměr inkasovaných gólů soupeře.\n`;
-  text += `- Tabulky obsahují detailní zápasy, body a skóre; text výše je kompletní přepis tabulek pro snadné kopírování.\n`;
+  text += `- Všechny odhady jsou orientační a vycházejí z Poissonova modelu.\n`;
+  text += `- Text je kompletní přepis tabulek pro snadné kopírování nebo další zpracování.\n`;
 
   return text;
 }
@@ -887,7 +921,7 @@ function renderHistoryList() {
   });
 }
 
-// -------------------- UI: hlavní funkce připojené k tlačítkům v HTML --------------------
+// -------------------- UI: hlavní funkce --------------------
 function generatePrompt() {
   const homeText = document.getElementById('homeInput').value.trim();
   const awayText = document.getElementById('awayInput').value.trim();
@@ -910,13 +944,7 @@ function generatePrompt() {
     return;
   }
 
-  // připravíme data pro vykreslení a textový report
-  const commonData = getCommonOpponentsData(home, away);
-  const h2hData = getHeadToHeadData(home, away);
-  const probs = computeMatchProbabilities(home.stats, away.stats);
-
   renderComparisonTable(home, away);
-  // text report je doplněn uvnitř renderComparisonTable (volá buildFullTextReport)
   addHistoryItem(homeText, awayText, "Generováno");
 }
 
