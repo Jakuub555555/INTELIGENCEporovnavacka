@@ -1,44 +1,57 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FilmovýFanatik</title> <!-- Změněno na FilmovýFanatik -->
-    <link rel="stylesheet" href="style.css">
-    <!-- Přidání Font Awesome pro ikony -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
-    <!-- Přidání favicon -->
-    <link rel="icon" href="https://i.imgur.com/6rR3bCP.png" type="image/png">
+<meta charset="UTF-8">
+<title>Match Intelligence</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- CSS bude vloženo sem -->
+<style id="css-here"></style>
+
 </head>
 <body>
-    <header>
-        <div class="logo-container">
-            <img src="https://i.imgur.com/wr7tqxs.png" alt="Logo" class="logo">
-        </div>
-        <div class="logo-text">FilmovýFanatik</div> <!-- Text změněn na FilmovýFanatik -->
-        <div class="social-links">
-            <!-- Instagram ikona -->
-            <a href="https://www.instagram.com/filmovyfanatik/" target="_blank" class="social-icon instagram">
-                <i class="fab fa-instagram"></i> <!-- Instagram ikona -->
-            </a>
-            <!-- YouTube ikona -->
-            <a href="https://www.youtube.com/@filmovyfanatik" target="_blank" class="social-icon youtube">
-                <i class="fab fa-youtube"></i> <!-- YouTube ikona -->
-            </a>
-        </div>
-    </header>
 
-    <main>
-        <!-- Sekce pro YouTube video -->
-        <div class="video-container">
-            <div class="video-frame">
-                <iframe src="https://www.youtube.com/embed/4LK5CLxj_p0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<div class="shell">
+    <div class="frame">
+        <div class="terminal">
+
+            <div class="top-row">
+                <h1>MATCH INTELLIGENCE</h1>
+                <div class="badge">
+                    <span class="badge-dot"></span>
+                    DARK SYNDICATE TERMINAL
+                </div>
             </div>
-        </div>
-    </main>
 
-    <footer>
-        <!-- Můžete přidat obsah zápatí, pokud chcete -->
-    </footer>
+            <div class="layout">
+                <div class="panel">
+                    <div class="panel-label">TÝM A – DOMÁCÍ</div>
+                    <textarea id="homeInput" class="input-box" placeholder="Sem vlož blok pro domácí tým..."></textarea>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-label">TÝM B – HOSTÉ</div>
+                    <textarea id="awayInput" class="input-box" placeholder="Sem vlož blok pro hostující tým..."></textarea>
+                </div>
+            </div>
+
+            <div class="buttons">
+                <button onclick="generatePrompt()">GENEROVAT INTELLIGENCE</button>
+                <button onclick="copyPrompt()">KOPÍROVAT</button>
+                <button onclick="clearAll()">VYMAZAT</button>
+            </div>
+
+            <div class="panel" style="margin-top:14px;">
+                <div class="panel-label">Match Intelligence Report</div>
+                <textarea id="promptOutput" class="output-box" placeholder="Zde se objeví Match Intelligence Report..."></textarea>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- JS bude vloženo sem -->
+<script id="js-here"></script>
+
 </body>
 </html>
