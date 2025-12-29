@@ -1,56 +1,65 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-<meta charset="UTF-8">
-<title>Match Intelligence</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<!-- Favicon -->
-<link rel="icon" type="image/png" href="https://i.imgur.com/vNvWJSD.png">
-
-<link rel="stylesheet" href="styles.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Match Intelligence — Profesionální porovnání</title>
+  <link rel="icon" type="image/png" href="https://i.imgur.com/vNvWJSD.png" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-
-<div class="shell">
+  <div class="shell">
     <div class="frame">
-        <div class="terminal">
+      <div class="terminal">
 
-            <div class="top-row">
-                <h1>MATCH INTELLIGENCE</h1>
-                <div class="badge">
-                    <span class="badge-dot"></span>
-                    DARK SYNDICATE TERMINAL
-                </div>
-            </div>
-
-            <div class="layout">
-                <div class="panel">
-                    <div class="panel-label">TÝM A – DOMÁCÍ</div>
-                    <textarea id="homeInput" class="input-box" placeholder="Sem vlož blok pro domácí tým..."></textarea>
-                </div>
-
-                <div class="panel">
-                    <div class="panel-label">TÝM B – HOSTÉ</div>
-                    <textarea id="awayInput" class="input-box" placeholder="Sem vlož blok pro hostující tým..."></textarea>
-                </div>
-            </div>
-
-            <div class="buttons">
-                <button onclick="generatePrompt()">GENEROVAT INTELLIGENCE</button>
-                <button onclick="copyPrompt()">KOPÍROVAT</button>
-                <button onclick="clearAll()">VYMAZAT</button>
-            </div>
-
-            <div class="panel" style="margin-top:14px;">
-                <div class="panel-label">Match Intelligence Report</div>
-                <textarea id="promptOutput" class="output-box" placeholder="Zde se objeví Match Intelligence Report..."></textarea>
-            </div>
-
+        <div class="top-row">
+          <h1>MATCH INTELLIGENCE</h1>
+          <div class="badge" aria-hidden="true">
+            <span class="badge-dot"></span>
+            DARK SYNDICATE TERMINAL
+          </div>
         </div>
-    </div>
-</div>
 
-<script src="script.js" defer></script>
+        <div class="layout">
+          <div class="panel">
+            <div class="panel-label">TÝM A – DOMÁCÍ</div>
+            <textarea id="homeInput" class="input-box" placeholder="Sem vlož blok pro domácí tým. Zahrň řádek 'Seznam zápasů' a zápasy ve formátu: Team1 vs Team2: 2-1 - Výhra (01.01.25)"></textarea>
+          </div>
+
+          <div class="panel">
+            <div class="panel-label">TÝM B – HOSTÉ</div>
+            <textarea id="awayInput" class="input-box" placeholder="Sem vlož blok pro hostující tým (stejný formát jako u domácích)"></textarea>
+          </div>
+        </div>
+
+        <div class="buttons" role="toolbar" aria-label="Akce">
+          <button id="btnGenerate" type="button" onclick="generatePrompt()">GENEROVAT INTELLIGENCE</button>
+          <button id="btnCopy" type="button" onclick="copyPrompt()">KOPÍROVAT TEXT</button>
+          <button id="btnClear" type="button" onclick="clearAll()">VYMAZAT</button>
+        </div>
+
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-label">Match Intelligence — profesionální přehled</div>
+
+          <div id="probSummary" class="prob-summary" aria-live="polite"></div>
+
+          <div id="reportOutput" style="width:100%; overflow:auto; padding:6px;" aria-live="polite"></div>
+
+          <div style="margin-top:10px;">
+            <div class="panel-label">Textový report (volitelně)</div>
+            <textarea id="promptOutput" class="output-box" placeholder="Textový report..." readonly></textarea>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-label">Historie generací</div>
+          <div id="historyList" style="max-height:260px; overflow:auto; padding:8px;"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js" defer></script>
 </body>
 </html>
