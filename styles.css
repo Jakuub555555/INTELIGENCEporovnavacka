@@ -1,6 +1,6 @@
 /* styles.css
    Match Intelligence — profesionální dashboard
-   Kompletní styl pro HTML, tabulkové porovnání, pravděpodobnosti a historie
+   Kompletní styl pro HTML, tabulkové porovnání, pravděpodobnosti a historii
 */
 
 /* -------------------- GLOBAL -------------------- */
@@ -28,9 +28,7 @@
 }
 
 /* Body */
-html, body {
-  height: 100%;
-}
+html, body { height: 100%; }
 body {
   padding: 32px 0;
   background:
@@ -267,12 +265,12 @@ button:hover {
   font-weight:700;
   font-size:13px;
 }
-.prob-home { background: linear-gradient(90deg, rgba(0,230,118,0.06), rgba(0,230,118,0.02)); color: var(--success); border:1px solid rgba(0,230,118,0.08); }
-.prob-draw { background: linear-gradient(90deg, rgba(255,235,59,0.06), rgba(255,235,59,0.02)); color: var(--warning); border:1px solid rgba(255,235,59,0.08); }
-.prob-away { background: linear-gradient(90deg, rgba(255,82,82,0.06), rgba(255,82,82,0.02)); color: var(--danger); border:1px solid rgba(255,82,82,0.08); }
+.prob-home { background: rgba(0,230,118,0.06); color: var(--success); border:1px solid rgba(0,230,118,0.08); }
+.prob-draw { background: rgba(255,235,59,0.06); color: var(--warning); border:1px solid rgba(255,235,59,0.08); }
+.prob-away { background: rgba(255,82,82,0.06); color: var(--danger); border:1px solid rgba(255,82,82,0.08); }
 
 /* sparkline bar */
-.prob-bar { height:8px; border-radius:6px; background: linear-gradient(90deg, rgba(255,255,255,0.03), transparent); margin-top:8px; overflow:hidden; }
+.prob-bar { height:8px; border-radius:6px; background: rgba(255,255,255,0.03); margin-top:8px; overflow:hidden; }
 .prob-bar > i { display:block; height:100%; background:linear-gradient(90deg, rgba(0,245,255,0.6), rgba(0,255,191,0.4)); }
 
 /* -------------------- TABLE REPORT STYLES -------------------- */
@@ -292,13 +290,13 @@ button:hover {
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  background: linear-gradient(90deg, rgba(0,0,0,0.18), rgba(255,255,255,0.01));
+  background: rgba(0,0,0,0.18);
 }
 .mi-compare-table th, .mi-compare-table td {
   padding: 10px 12px;
   border-bottom: 1px solid rgba(255,255,255,0.02);
   font-size: 13px;
-  vertical-align: middle;
+  vertical-align: top;
 }
 .mi-compare-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.01); }
 .mi-compare-table tbody tr:hover { background: rgba(0,245,255,0.03); }
@@ -317,7 +315,7 @@ button:hover {
 .mi-compare-na { background: rgba(150,160,220,0.04); color: var(--text-dim); border: 1px solid rgba(150,160,220,0.06); }
 
 /* Summary row */
-.mi-summary-row { font-weight: 700; background: linear-gradient(90deg, rgba(255,255,255,0.01), transparent); }
+.mi-summary-row { font-weight: 700; background: rgba(255,255,255,0.02); }
 
 /* small helper styles inside report container */
 #reportOutput > div { margin-top: 8px; color: var(--text-dim); font-size: 13px; }
