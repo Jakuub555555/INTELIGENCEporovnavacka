@@ -1,8 +1,5 @@
 // script.js
-// Match Intelligence — kompletní skript (parsování, analýza, profesionální tabulkové porovnání,
-// Poisson odhad, tabulky společných soupeřů, head-to-head, historie)
-// Verze A: bez váženého skóre, s opravou metrik, kde je NIŽŠÍ hodnota lepší,
-// s kompletním textovým reportem (přepis tabulek).
+// Match Intelligence — kompletní skript s opravou porovnávání textových metrik
 
 // -------------------- Utility / formátování --------------------
 function nowIso() { return new Date().toISOString(); }
@@ -537,7 +534,6 @@ function renderComparisonTable(home, away) {
 
   const probsGlobal = computeMatchProbabilities(home.stats, away.stats);
 
-  // metriky, kde je NIŽŠÍ číslo lepší
   const lowerIsBetter = [
     "Počet proher",
     "Průměr inkasovaných gólů na zápas",
@@ -564,7 +560,25 @@ function renderComparisonTable(home, away) {
     let resultClass = "mi-compare-na";
     let resultText = "N/A";
 
-    if (nH !== null && nA !== null) {
+    // --- OPRAVA: Speciální logika pro textové metriky Bilance a Trend ---
+    if (label.includes("Bilance posledních")) {
+        const getPts = (str) => [...str].reduce((acc, c) => acc + (c === 'W' ? 3 : c === 'D' ? 1 : 0), 0);
+        const ptsH = getPts(String(hVal));
+        const ptsA = getPts(String(aVal));
+        if (ptsH > ptsA) { resultClass = "mi-compare-home"; resultText = "Domácí"; homeScore++; }
+        else if (ptsA > ptsH) { resultClass = "mi-compare-away"; resultText = "Hosté"; awayScore++; }
+        else { resultClass = "mi-compare-even"; resultText = "Vyrovnané"; }
+    } 
+    else if (label === "Trend formy") {
+        const trendWeight = { "rostoucí": 2, "stabilní": 1, "klesající": 0 };
+        const weightH = trendWeight[hVal] ?? -1;
+        const weightA = trendWeight[aVal] ?? -1;
+        if (weightH > weightA) { resultClass = "mi-compare-home"; resultText = "Domácí"; homeScore++; }
+        else if (weightA > weightH) { resultClass = "mi-compare-away"; resultText = "Hosté"; awayScore++; }
+        else if (weightH !== -1) { resultClass = "mi-compare-even"; resultText = "Vyrovnané"; }
+    }
+    // --- Standardní číselná logika ---
+    else if (nH !== null && nA !== null) {
       if (lowerIsBetter.includes(label)) {
         if (nH < nA) { resultClass = "mi-compare-home"; resultText = "Domácí"; homeScore++; }
         else if (nA < nH) { resultClass = "mi-compare-away"; resultText = "Hosté"; awayScore++; }
@@ -574,9 +588,6 @@ function renderComparisonTable(home, away) {
         else if (nA > nH) { resultClass = "mi-compare-away"; resultText = "Hosté"; awayScore++; }
         else { resultClass = "mi-compare-even"; resultText = "Vyrovnané"; }
       }
-    } else {
-      resultClass = "mi-compare-na";
-      resultText = "N/A";
     }
 
     html += `<tr>
@@ -594,7 +605,6 @@ function renderComparisonTable(home, away) {
   html += `<tr class="mi-summary-row"><td>Souhrn</td><td colspan="2">${escapeHtml(overall)}</td><td></td></tr>`;
   html += `</tbody></table>`;
 
-  // --- Tabulka: společné soupeři ---
   const commonData = getCommonOpponentsData(home, away);
   if (commonData.rows.length) {
     html += `<div style="margin-top:12px"><div style="font-weight:700;color:var(--text-dim);font-size:12px;margin-bottom:8px">Výkonnost proti společným soupeřům</div>`;
@@ -632,7 +642,6 @@ function renderComparisonTable(home, away) {
     html += `<div style="margin-top:12px;color:var(--text-dim);font-size:13px">Společní soupeři: žádní nalezeni.</div>`;
   }
 
-  // --- Tabulka: head-to-head ---
   const h2hData = getHeadToHeadData(home, away);
   if (h2hData.rows.length) {
     html += `<div style="margin-top:12px"><div style="font-weight:700;color:var(--text-dim);font-size:12px;margin-bottom:8px">Vzájemné zápasy (head-to-head)</div>`;
@@ -664,7 +673,6 @@ function renderComparisonTable(home, away) {
     html += `<div style="margin-top:12px;color:var(--text-dim);font-size:13px">Vzájemné zápasy: žádné nalezeny.</div>`;
   }
 
-  // --- Souhrn pravděpodobností ---
   if (probSummary) {
     const pA = probsGlobal.pAwin || 0;
     const pD = probsGlobal.pDraw || 0;
@@ -697,7 +705,7 @@ function renderComparisonTable(home, away) {
   if (textArea) textArea.value = buildFullTextReport(home, away, commonData, h2hData, probsGlobal);
 }
 
-// -------------------- Textový report (kompletní přepis tabulek) --------------------
+// -------------------- Textový report --------------------
 function buildFullTextReport(home, away, commonData, h2hData, probsGlobal) {
   const A = home.stats;
   const B = away.stats;
@@ -774,8 +782,6 @@ function buildFullTextReport(home, away, commonData, h2hData, probsGlobal) {
     text += ` - ${home.name}: ${s.totalPtsA} bodů, skóre ${s.totalGfA}:${s.totalGaA}\n`;
     text += ` - ${away.name}: ${s.totalPtsB} bodů, skóre ${s.totalGfB}:${s.totalGaB}\n`;
     text += `Lepší proti společným soupeřům: ${s.overallBetter}\n\n`;
-  } else {
-    text += `Žádní společní soupeři nebyli nalezeni.\n\n`;
   }
 
   text += `--- Vzájemné zápasy (head-to-head) ---\n`;
@@ -791,8 +797,6 @@ function buildFullTextReport(home, away, commonData, h2hData, probsGlobal) {
     text += ` - Remízy: ${hs.draws}\n`;
     text += ` - Celkové skóre z pohledu ${home.name}: ${hs.gfA}:${hs.gaA}\n`;
     text += `Kdo lépe ve vzájemných zápasech: ${hs.overall}\n\n`;
-  } else {
-    text += `Žádné vzájemné zápasy nebyly nalezeny.\n\n`;
   }
 
   text += `--- Pravděpodobnosti a očekávané góly (Poisson) ---\n`;
@@ -803,7 +807,6 @@ function buildFullTextReport(home, away, commonData, h2hData, probsGlobal) {
 
   text += `--- Doplňující poznámky ---\n`;
   text += `- Všechny odhady jsou orientační a vycházejí z Poissonova modelu.\n`;
-  text += `- Text je kompletní přepis tabulek pro snadné kopírování nebo další zpracování.\n`;
 
   return text;
 }
@@ -928,19 +931,15 @@ function generatePrompt() {
   const out = document.getElementById('promptOutput');
 
   if (!homeText || !awayText) {
-    if (out) out.value = "Vyplň prosím blok pro domácí i hosty (včetně části 'Seznam zápasů').";
+    if (out) out.value = "Vyplň prosím blok pro domácí i hosty.";
     return;
   }
 
   const home = parseTeamBlock(homeText);
   const away = parseTeamBlock(awayText);
 
-  if (!home || !home.matches.length) {
-    if (out) out.value = "Domácí tým: nepodařilo se najít platné zápasy v části 'Seznam zápasů'. Zkontroluj formát řádků.";
-    return;
-  }
-  if (!away || !away.matches.length) {
-    if (out) out.value = "Hostující tým: nepodařilo se najít platné zápasy v části 'Seznam zápasů'. Zkontroluj formát řádků.";
+  if (!home || !home.matches.length || !away || !away.matches.length) {
+    if (out) out.value = "Chyba při parsování zápasů. Zkontroluj formát.";
     return;
   }
 
@@ -950,40 +949,19 @@ function generatePrompt() {
 
 function copyPrompt() {
   const out = document.getElementById('promptOutput');
-  if (!out || !out.value.trim()) {
-    alert("Není co kopírovat.");
-    return;
-  }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(out.value).then(() => {
-      alert("Textový report zkopírován do schránky.");
-    }).catch(() => {
-      fallbackCopy(out.value);
-    });
-  } else {
-    fallbackCopy(out.value);
-  }
-}
-function fallbackCopy(text) {
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  document.body.appendChild(ta);
-  ta.select();
-  try { document.execCommand("copy"); alert("Textový report zkopírován do schránky."); }
-  catch { alert("Kopírování selhalo. Zkus to ručně (Ctrl+C)."); }
-  document.body.removeChild(ta);
+  if (!out || !out.value.trim()) return;
+  navigator.clipboard.writeText(out.value).then(() => alert("Report zkopírován."));
 }
 
 function clearAll() {
-  if (!confirm("Opravdu vymazat vstupy a výstup?")) return;
+  if (!confirm("Vymazat vše?")) return;
   document.getElementById('homeInput').value = "";
   document.getElementById('awayInput').value = "";
-  const out = document.getElementById('promptOutput'); if (out) out.value = "";
-  const report = document.getElementById('reportOutput'); if (report) report.innerHTML = "";
-  const prob = document.getElementById('probSummary'); if (prob) prob.innerHTML = "";
+  if (document.getElementById('promptOutput')) document.getElementById('promptOutput').value = "";
+  if (document.getElementById('reportOutput')) document.getElementById('reportOutput').innerHTML = "";
+  if (document.getElementById('probSummary')) document.getElementById('probSummary').innerHTML = "";
 }
 
-// -------------------- Inicializace --------------------
 window.addEventListener('DOMContentLoaded', () => {
   renderHistoryList();
 });
