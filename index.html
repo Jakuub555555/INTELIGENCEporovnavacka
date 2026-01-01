@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Match Intelligence — Profesionální porovnání</title>
 
-  <!-- CSS -->
   <link rel="stylesheet" href="styles.css" />
 </head>
 
@@ -14,7 +13,6 @@
     <div class="frame">
       <div class="terminal">
 
-        <!-- HEADER -->
         <div class="top-row">
           <h1>MATCH INTELLIGENCE</h1>
           <div class="badge">
@@ -23,11 +21,6 @@
           </div>
         </div>
 
-        <script src="script.js"></script>
-  <script src="bet-expert.js"></script> </body>
-</html>
-
-        <!-- INPUTS -->
         <div class="layout">
           <div class="panel">
             <div class="panel-label">TÝM A – DOMÁCÍ</div>
@@ -43,37 +36,26 @@ Team1 vs Team2: 2-1 - Výhra (01.01.25)"></textarea>
           </div>
         </div>
 
-        <!-- BUTTONS -->
         <div class="buttons">
           <button type="button" onclick="generatePrompt()">GENEROVAT INTELLIGENCE</button>
+          <button type="button" onclick="verifyBet()" style="border-color: #00ffbf; color: #00ffbf;">OVĚŘIT BET</button>
           <button type="button" onclick="copyPrompt()">KOPÍROVAT TEXT</button>
           <button type="button" onclick="clearAll()">VYMAZAT</button>
         </div>
 
-        <div class="buttons">
-  <button type="button" onclick="generatePrompt()">GENEROVAT INTELLIGENCE</button>
-  <button type="button" onclick="verifyBet()" style="border-color: #00ffbf; color: #00ffbf;">OVĚŘIT BET</button> <button type="button" onclick="copyPrompt()">KOPÍROVAT TEXT</button>
-  <button type="button" onclick="clearAll()">VYMAZAT</button>
-</div>
-
-        <!-- REPORT PANEL -->
         <div class="panel" style="margin-top:14px;">
           <div class="panel-label">Match Intelligence — profesionální přehled</div>
 
-          <!-- Probability summary -->
           <div id="probSummary" class="prob-summary"></div>
 
-          <!-- Main tables -->
           <div id="reportOutput" style="width:100%; overflow:auto; padding:6px;"></div>
 
-          <!-- Text report -->
           <div style="margin-top:10px;">
             <div class="panel-label">Textový report (kompletní přepis tabulek)</div>
             <textarea id="promptOutput" class="output-box" readonly></textarea>
           </div>
         </div>
 
-        <!-- HISTORY -->
         <div class="panel" style="margin-top:14px;">
           <div class="panel-label">Historie generací</div>
           <div id="historyList" style="max-height:260px; overflow:auto; padding:8px;"></div>
@@ -83,9 +65,7 @@ Team1 vs Team2: 2-1 - Výhra (01.01.25)"></textarea>
     </div>
   </div>
 
-  <!-- JS -->
   <script src="script.js"></script>
+  <script src="bet-expert.js"></script>
 </body>
 </html>
-
-
