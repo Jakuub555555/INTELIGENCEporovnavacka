@@ -48,7 +48,7 @@ function verifyBet() {
         },
         { 
             n: "Očekávané góly", 
-            d: "favorit musí mít 2.8+ očekávané góly", 
+            d: "favorit musí mít 2,8+ očekávané góly", 
             ok: (isHomeFavorit ? probs.expA : probs.expB) >= 2.8 
         },
         { 
@@ -68,8 +68,8 @@ function verifyBet() {
         },
         { 
             n: "Gólový rozdíl", 
-            d: "favorit musí mít více než oponent aspoň o 15+", 
-            ok: (f.goalsFor - f.goalsAgainst) >= (u.goalsFor - u.goalsAgainst) + 15 
+            d: "favorit musí mít více než oponent aspoň o 10+", 
+            ok: (f.goalsFor - f.goalsAgainst) >= (u.goalsFor - u.goalsAgainst) + 10 
         },
         { 
             n: "Bilance posledních 5 zápasů", 
