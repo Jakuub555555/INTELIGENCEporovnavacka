@@ -1,6 +1,6 @@
 /**
- * MATCH INTELLIGENCE - BET EXPERT MODUL (PRO AI VERSION)
- * 22 analytických kritérií + Generátor hloubkového reportu pro AI
+ * MATCH INTELLIGENCE - BET EXPERT MODUL (PRO VERSION)
+ * 22 analytických kritérií pro hloubkovou analýzu sázek s funkcí exportu pro AI.
  */
 
 function verifyBet() {
@@ -16,7 +16,6 @@ function verifyBet() {
     const parseData = (text, label) => {
         const lines = text.split('\n');
         let matches = [];
-        let rawMatches = [];
         let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0;
         let lostButScored = 0, lostHandicap = 0, lostUnder35 = 0;
         let heavyDefeats = 0;
@@ -30,8 +29,7 @@ function verifyBet() {
                 const totalG = h + a;
                 const res = line.includes("Výhra") ? "W" : (line.includes("Remíza") ? "D" : "L");
                 
-                rawMatches.push(line.trim());
-                matches.push({ res, h, a, diff, totalG });
+                matches.push({ raw: line.trim(), res, h, a, diff, totalG });
 
                 if (res === "W") { wins++; gf += h; ga += a; }
                 else if (res === "D") { draws++; gf += h; ga += a; }
@@ -59,6 +57,7 @@ function verifyBet() {
 
         return {
             label,
+            rawMatches: matches.map(m => m.raw),
             wins, draws, losses, total, gf, ga, pts,
             avgPts: pts / total,
             avgGF: gf / total,
@@ -69,7 +68,6 @@ function verifyBet() {
             lostUnder35,
             afterLossRate: afterLossCount > 0 ? afterLossPts / afterLossCount : 0,
             heavyDefeats,
-            rawMatches,
             last5: matches.slice(-5).reduce((acc, m) => acc + (m.res === "W" ? 3 : (m.res === "D" ? 1 : 0)), 0),
             last10: matches.slice(-10).reduce((acc, m) => acc + (m.res === "W" ? 3 : (m.res === "D" ? 1 : 0)), 0)
         };
@@ -110,37 +108,31 @@ function verifyBet() {
     ];
 
     const score = checks.filter(c => c.ok).length;
-
-    // Generování hloubkového AI reportu
-    const generateAIReport = () => {
-        let r = `=== HLOUBKOVÁ ANALÝZA SÁZKY: ${fName} ===\n`;
-        r += `Celkové skóre: ${score} / 23\n\n`;
-        
-        [h, a].forEach(t => {
-            r += `--- DATA: ${t.label} ---\n`;
-            r += `Zápasy celkem: ${t.total} (W:${t.wins} D:${t.draws} L:${t.losses})\n`;
-            r += `Skóre: ${t.gf}:${t.ga} (Rozdíl: ${t.gf-t.ga})\n`;
-            r += `Průměr bodů: ${t.avgPts.toFixed(2)}\n`;
-            r += `Prohry pod 3.5 g: ${t.lostUnder35}\n`;
-            r += `Prohry s gólom: ${t.lostButScored}\n`;
-            r += `Prohry HC +1.5: ${t.lostHandicap}\n`;
-            r += `Počet debaklů: ${t.heavyDefeats}\n`;
-            r += `Návrat po prohře (avg pts): ${t.afterLossRate.toFixed(2)}\n`;
-            r += `SEZNAM ZÁPASŮ:\n${t.rawMatches.join('\n')}\n\n`;
+    
+    // PŘÍPRAVA TEXTU PRO AI (Úplný výpis bez zkracování)
+    const generateAiReport = () => {
+        let report = `=== ANALÝZA ZÁPASU: ${h.label} vs ${a.label} ===\n\n`;
+        [h, a].forEach(team => {
+            report += `--- ${team.label} ---\n`;
+            report += `Zápasy celkem: ${team.total}\n`;
+            report += `Výhry/Remízy/Prohry: ${team.wins}/${team.draws}/${team.losses}\n`;
+            report += `Skóre: ${team.gf}:${team.ga} (Průměr: ${team.avgGF.toFixed(2)})\n`;
+            report += `Průměr bodů: ${team.avgPts.toFixed(2)}\n`;
+            report += `Prohry se vstřeleným gólem: ${team.lostButScored}\n`;
+            report += `Prohry o max 1 gól (HC+1.5): ${team.lostHandicap}\n`;
+            report += `Prohry pod 3.5 gólu: ${team.lostUnder35}\n`;
+            report += `Debakly (prohra o 3+): ${team.heavyDefeats}\n`;
+            report += `Úspěšnost po prohře: ${(team.afterLossRate * 100).toFixed(1)}%\n`;
+            report += `SEZNAM VŠECH ZÁPASŮ:\n${team.rawMatches.join('\n')}\n\n`;
         });
-
-        r += `--- DETAILNÍ KRITÉRIA ---\n`;
-        checks.forEach(c => r += `[${c.ok ? 'ANO' : 'NE'}] ${c.n}: ${c.d}\n`);
-        
-        navigator.clipboard.writeText(r);
-        alert("Kompletní report se všemi daty a zápasy byl zkopírován do schránky!");
+        report += `VERDIKT: ${fName} (Skóre analýzy: ${score}/23)\n`;
+        return report;
     };
 
-    window.copyAIReport = generateAIReport;
-    showBetModal(fName, score, checks, score >= 17);
+    showBetModal(fName, score, checks, score >= 17, generateAiReport());
 }
 
-function showBetModal(favorit, score, checks, isStrongBet) {
+function showBetModal(favorit, score, checks, isStrongBet, aiReportText) {
     const old = document.getElementById('betExpertModal');
     if (old) old.remove();
 
@@ -165,29 +157,46 @@ function showBetModal(favorit, score, checks, isStrongBet) {
                 <h2 style="margin:0; color:#fff; font-size:26px; text-transform:uppercase;">${favorit}</h2>
             </div>
             
-            <div style="padding:10px 30px; max-height:350px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#00f6ff #0a0b1e;">
+            <div style="padding:10px 30px; max-height:400px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#00f6ff #0a0b1e;">
                 ${rowsHtml}
             </div>
             
-            <div style="padding:25px; text-align:center; background:rgba(0,0,0,0.3);">
-                <div style="font-size:18px; font-weight:800; color:${isStrongBet ? '#00f6ff' : '#ff3366'}">
+            <div style="padding:30px; text-align:center; background:rgba(0,0,0,0.3);">
+                <div style="font-size:20px; font-weight:800; color:${isStrongBet ? '#00f6ff' : '#ff3366'}">
                     ${isStrongBet ? 'SCHVÁLENO — VSADIT' : 'NEDOSTATEČNÁ FORMACE'}
                 </div>
-                <div style="color:#a0aec0; font-size:12px; margin:8px 0; font-family:monospace;">
-                    SCORE: ${score} / 23 BODY
+                <div style="color:#a0aec0; font-size:13px; margin-top:10px; font-family:monospace;">
+                    SCORE: ${score} / 23 ANALYTICKÝCH BODŮ
                 </div>
-                
-                <button onclick="copyAIReport()" 
-                        style="width:100%; padding:12px; background:#00f6ff; border:none; color:#000; border-radius:8px; cursor:pointer; font-weight:bold; text-transform:uppercase; margin-bottom:10px; font-size:11px;">
-                    📋 Kopírovat report pro AI (Všechna data)
+
+                <button id="copyAiReport"
+                        style="margin-top:20px; width:100%; padding:12px; background:#00f6ff; border:none; color:#0a0b1e; border-radius:10px; cursor:pointer; font-weight:bold; text-transform:uppercase; transition:0.3s;">
+                    KOPÍROVAT REPORT PRO AI
                 </button>
 
                 <button onclick="document.getElementById('betExpertModal').remove()" 
-                        style="width:100%; padding:12px; background:transparent; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:8px; cursor:pointer; font-weight:bold; text-transform:uppercase; font-size:11px;">
-                    Zavřít analýzu
+                        style="margin-top:12px; width:100%; padding:12px; background:transparent; border:1px solid #ff3366; color:#ff3366; border-radius:10px; cursor:pointer; font-weight:bold; text-transform:uppercase; transition:0.3s;"
+                        onmouseover="this.style.background='rgba(255,51,102,0.1)'"
+                        onmouseout="this.style.background='transparent'">
+                    Zavřít hloubkovou analýzu
                 </button>
             </div>
         </div>
     `;
+
     document.body.appendChild(modal);
+
+    // LOGIKA PRO TLAČÍTKO KOPÍROVAT
+    document.getElementById('copyAiReport').onclick = () => {
+        navigator.clipboard.writeText(aiReportText).then(() => {
+            const btn = document.getElementById('copyAiReport');
+            const originalText = btn.innerText;
+            btn.innerText = "KOPÍROVÁNO!";
+            btn.style.background = "#00e676";
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.style.background = "#00f6ff";
+            }, 2000);
+        });
+    };
 }
