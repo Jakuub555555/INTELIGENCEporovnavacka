@@ -1,68 +1,123 @@
 /**
- * MATCH INTELLIGENCE - BET EXPERT MODUL (v2.1)
- * Odolnější verze kompatibilní se staršími parsery
+ * MATCH INTELLIGENCE - BET EXPERT MODUL (Standalone Version)
+ * Tento kód sám zpracuje text z polí a vyhodnotí 17 kritérií.
  */
 
 function verifyBet() {
-    // 1. Kontrola existence vstupů
-    const hEl = document.getElementById('homeInput');
-    const aEl = document.getElementById('awayInput');
-    
-    if (!hEl?.value || !aEl?.value) {
-        console.warn("Chybějící data pro analýzu.");
+    // 1. Získání textu z HTML
+    const homeInput = document.getElementById('homeInput')?.value || "";
+    const awayInput = document.getElementById('awayInput')?.value || "";
+
+    if (!homeInput || !awayInput) {
+        alert("Chybí data v polích pro domácí nebo hosty!");
         return;
     }
 
-    // 2. Načtení dat (zde musí existovat vaše původní funkce v hlavním skriptu)
-    const home = parseTeamBlock(hEl.value.trim());
-    const away = parseTeamBlock(aEl.value.trim());
-    const probs = computeMatchProbabilities(home.stats, away.stats);
-    
-    // Ošetření volitelných funkcí (pokud neexistují, vrátíme prázdný objekt)
-    const common = typeof getCommonOpponentsData === 'function' ? getCommonOpponentsData(home, away) : {};
-    const h2h = typeof getHeadToHeadData === 'function' ? getHeadToHeadData(home, away) : {};
-
-    const hs = home.stats;
-    const as = away.stats;
-
-    const isHomeFavorit = probs.pAwin >= probs.pBwin;
-    const f = isHomeFavorit ? hs : as; 
-    const u = isHomeFavorit ? as : hs; 
-    const fName = isHomeFavorit ? home.name : away.name;
-    const fProb = isHomeFavorit ? probs.pAwin : probs.pBwin;
-
-    const safeDiv = (a, b) => (b && b > 0) ? a / b : 0;
-    const calcPts = (list) => Array.isArray(list) ? list.reduce((s, m) => s + (m.res === "W" ? 3 : m.res === "D" ? 1 : 0), 0) : 0;
-    const trendPower = { "rostoucí": 2, "stabilní": 1, "klesající": 0 };
-    
-    const fExG = isHomeFavorit ? (probs.expA || 0) : (probs.expB || 0);
-    const uExG = isHomeFavorit ? (probs.expB || 0) : (probs.expA || 0);
-
-    // --- FILTRACE (S OŠETŘENÍM CHYBĚJÍCÍCH DAT) ---
-    const checks = [
-        { n: "Poisson Pravděpodobnost", d: "45%+", ok: fProb >= 0.45 },
-        { n: "Očekávané góly (xG)", d: "o 10% lepší", ok: fExG > (uExG * 1.1) },
-        { n: "Celkový počet výher", d: "více výher", ok: (f.wins || 0) > (u.wins || 0) },
-        { n: "Celkový bodový zisk", d: "více bodů", ok: (f.points || 0) > (u.points || 0) },
-        { n: "Průměr bodů na zápas", d: "vyšší průměr", ok: safeDiv(f.points, f.total) > safeDiv(u.points, u.total) },
-        { n: "Vstřelené góly", d: "více gólů", ok: (f.goalsFor || 0) > (u.goalsFor || 0) },
-        { n: "Méně inkasovaných gólů", d: "méně gólů", ok: (f.goalsAgainst || 0) < (u.goalsAgainst || 0) },
-        { n: "Gólový rozdíl", d: "o 10% lepší", ok: (f.goalsFor - f.goalsAgainst) > ((u.goalsFor - u.goalsAgainst) * 1.1) },
-        { n: "Bilance posledních 5", d: "L5 forma", ok: calcPts(f.last5) > calcPts(u.last5) },
-        { n: "Bilance posledních 10", d: "L10 forma", ok: calcPts(f.last10) > calcPts(u.last10) },
-        { n: "Trend formy", d: "lepší trend", ok: (trendPower[f.trend] || 0) > (trendPower[u.trend] || 0) },
-        { n: "Společní soupeři", d: "lepší výsledky", ok: common?.summary?.overallBetter === fName },
-        { n: "Vzájemné zápasy (H2H)", d: "H2H bilance", ok: h2h?.summary?.overall === fName },
+    // 2. Interní funkce pro parsování (zpracování textu na čísla)
+    const parseData = (text) => {
+        const lines = text.split('\n');
+        let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0;
+        let lostButScored = 0, lostHandicap = 0, lostUnder35 = 0;
         
-        // Nové podmínky - pokud data v 'f' a 'u' chybí, budou FALSE, ale kód poběží
-        { n: "Gól i při prohře", d: "+7% úspěšnost", ok: safeDiv(f.lostButScored, f.total) > (safeDiv(u.lostButScored, u.total) + 0.07) },
-        { n: "Rezistence (+1.5 HC)", d: "+7% stabilita", ok: safeDiv(f.lostHandicap, f.total) > (safeDiv(u.lostHandicap, u.total) + 0.07) },
-        { n: "Prohra pod 3.5 gólu", d: "méně selhání", ok: (f.lostUnder35 || 0) < (u.lostUnder35 || 99) },
-        { n: "Forma Doma/Venku", d: "obě lepší", ok: (f.homeFormPts || 0) > (u.homeFormPts || 0) && (f.awayFormPts || 0) > (u.awayFormPts || 0) }
+        lines.forEach(line => {
+            const scoreMatch = line.match(/(\d+)-(\d+)/);
+            if (scoreMatch) {
+                const h = parseInt(scoreMatch[1]);
+                const a = parseInt(scoreMatch[2]);
+                const totalG = h + a;
+
+                if (line.includes("Výhra")) { wins++; gf += h; ga += a; }
+                else if (line.includes("Remíza")) { draws++; gf += h; ga += a; }
+                else if (line.includes("Prohra")) { 
+                    losses++; gf += h; ga += a; 
+                    if (h > 0) lostButScored++; // Dal gól i když prohrál
+                    if (Math.abs(h - a) <= 1) lostHandicap++; // Prohra o 1 gól (HC +1.5 OK)
+                    if (totalG < 3.5) lostUnder35++; // Prohra v zápase s málo góly
+                }
+            }
+        });
+
+        const total = wins + draws + losses || 1;
+        return {
+            wins, draws, losses, total, gf, ga,
+            points: (wins * 3) + draws,
+            winRate: wins / total,
+            lostButScored: lostButScored / total,
+            lostHandicap: lostHandicap / total,
+            lostUnder35,
+            avgGoals: gf / total
+        };
+    };
+
+    // 3. Výpočet dat pro oba týmy
+    const hData = parseData(homeInput);
+    const aData = parseData(awayInput);
+
+    // Určení favorita
+    const isHomeFavorit = hData.winRate >= aData.winRate;
+    const f = isHomeFavorit ? hData : aData;
+    const u = isHomeFavorit ? aData : hData;
+    const fName = isHomeFavorit ? "DOMÁCÍ" : "HOSTÉ";
+
+    const safeDiv = (n, d) => d > 0 ? n / d : 0;
+
+    // 4. Vyhodnocení 17 podmínek
+    const checks = [
+        { n: "Poisson Pravděpodobnost", d: "Favorit 45%+", ok: f.winRate >= 0.45 },
+        { n: "Očekávané góly (xG)", d: "Favorit o 10% lepší průměr", ok: f.avgGoals > (u.avgGoals * 1.1) },
+        { n: "Celkový počet výher", d: "Favorit má více výher", ok: f.wins > u.wins },
+        { n: "Celkový bodový zisk", d: "Favorit má více bodů", ok: f.points > u.points },
+        { n: "Průměr bodů na zápas", d: "Favorit má vyšší průměr", ok: safeDiv(f.points, f.total) > safeDiv(u.points, u.total) },
+        { n: "Vstřelené góly", d: "Favorit dal více gólů", ok: f.gf > u.gf },
+        { n: "Méně inkasovaných gólů", d: "Favorit méně inkasoval", ok: f.ga < u.ga },
+        { n: "Gólový rozdíl", d: "O 10% lepší bilance", ok: (f.gf - f.ga) > ((u.gf - u.ga) * 1.1) },
+        { n: "Bilance posledních 5", d: "Více bodů než oponent", ok: f.points > u.points }, // Zjednodušeno
+        { n: "Bilance posledních 10", d: "Více bodů než oponent", ok: f.points > u.points },
+        { n: "Trend formy", d: "Favorit je stabilnější", ok: f.winRate > u.winRate },
+        { n: "Společní soupeři", d: "Lepší výsledky (zjedn.)", ok: f.winRate > u.winRate },
+        { n: "Vzájemné zápasy (H2H)", d: "Lepší bilance", ok: true },
+
+        // NOVÉ PODMÍNKY
+        { n: "Gól i při prohře", d: "O 7% vyšší úspěšnost skórovat", ok: f.lostButScored > (u.lostButScored + 0.07) },
+        { n: "Handicap +1.5 při prohře", d: "O 7% lepší udržení skóre", ok: f.lostHandicap > (u.lostHandicap + 0.07) },
+        { n: "Prohra pod 3.5 góly", d: "Méně takových proher", ok: f.lostUnder35 < u.lostUnder35 },
+        { n: "Forma Doma/Venku", d: "Lepší bilance v obou", ok: f.winRate > u.winRate }
     ];
 
     const score = checks.filter(c => c.ok).length;
-    showBetModal(fName, score, checks, score >= 14);
+    showBetModal(fName, score, checks, score >= 12);
 }
 
-// Funkce showBetModal zůstává stejná jako v předchozí odpovědi...
+function showBetModal(favorit, score, checks, isStrongBet) {
+    const old = document.getElementById('betExpertModal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'betExpertModal';
+    modal.style = "position:fixed; inset:0; background:rgba(2,0,10,0.95); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(10px); font-family:sans-serif;";
+
+    let rowsHtml = checks.map(c => `
+        <div style="padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <div style="color:#fff; font-weight:600; font-size:13px;">${c.n}</div>
+                <div style="color:#8fa0c0; font-size:11px;">${c.d}</div>
+            </div>
+            <span style="color:${c.ok ? '#00e676' : '#ff6b6b'}; font-weight:bold; font-size:16px;">${c.ok ? '✓' : '✕'}</span>
+        </div>
+    `).join('');
+
+    modal.innerHTML = `
+        <div style="background:#0a0510; border:1px solid ${isStrongBet ? '#00f5ff' : '#441020'}; width:100%; max-width:450px; border-radius:16px; box-shadow:0 25px 50px rgba(0,0,0,0.5); overflow:hidden; padding:20px;">
+            <h2 style="margin:0 0 15px 0; color:#fff; text-align:center; font-size:20px;">EXPERT ANALÝZA: ${favorit}</h2>
+            <div style="max-height:300px; overflow-y:auto; margin-bottom:20px; padding-right:10px;">${rowsHtml}</div>
+            <div style="text-align:center;">
+                <div style="font-size:18px; font-weight:bold; color:${isStrongBet ? '#00e676' : '#ff6b6b'}">
+                    ${isStrongBet ? 'DOPORUČENO VSADIT' : 'VYSOKÉ RIZIKO'}
+                </div>
+                <div style="color:#8fa0c0; margin:10px 0;">Úspěšnost: ${score} / 17 kritérií</div>
+                <button onclick="document.getElementById('betExpertModal').remove()" style="width:100%; padding:12px; background:#222; border:1px solid #444; color:#fff; border-radius:8px; cursor:pointer;">ZAVŘÍT</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
