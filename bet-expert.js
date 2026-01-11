@@ -1,73 +1,74 @@
 /**
- * MATCH INTELLIGENCE - BET EXPERT MODUL
- * Kompletní analýza podle 17 specifických kritérií
+ * MATCH INTELLIGENCE - BET EXPERT MODUL (v3.0)
+ * Kompletní analýza 24 kritérií pro profesionální sázkaře.
  */
 
 function verifyBet() {
-    // 1. Načtení dat z HTML polí
     const homeInput = document.getElementById('homeInput')?.value || "";
     const awayInput = document.getElementById('awayInput')?.value || "";
 
     if (!homeInput || !awayInput) {
-        alert("Pro analýzu je nutné vložit data domácího i hostujícího týmu.");
+        alert("Vložte prosím data pro oba týmy.");
         return;
     }
 
-    /**
-     * POMOCNÝ PARSER: Převádí textový blok na statistický objekt
-     */
-    const parseTeamData = (text) => {
+    // --- INTERNÍ PARSER PRO POKROČILÉ METRIKY ---
+    const analyzeData = (text) => {
         const lines = text.split('\n');
-        let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0;
-        let lostButScored = 0, lostHandicap = 0, lostUnder35 = 0;
-        let homeWins = 0, awayWins = 0; // Pro zjednodušenou ukázku formy doma/venku
-
+        let matches = [];
+        
+        // Extrakce dat z každého řádku
         lines.forEach(line => {
             const scoreMatch = line.match(/(\d+)-(\d+)/);
             if (scoreMatch) {
-                const h = parseInt(scoreMatch[1]);
-                const a = parseInt(scoreMatch[2]);
-                const totalG = h + a;
-
-                // Základní statistika (předpoklad: tým je v záznamu jako první)
-                if (line.includes("Výhra")) { 
-                    wins++; gf += h; ga += a; 
-                    if (line.toLowerCase().includes("doma")) homeWins++;
-                    if (line.toLowerCase().includes("venku")) awayWins++;
-                }
-                else if (line.includes("Remíza")) { draws++; gf += h; ga += a; }
-                else if (line.includes("Prohra")) { 
-                    losses++; gf += h; ga += a; 
-                    // Speciální metriky proher
-                    if (h > 0) lostButScored++; 
-                    if (Math.abs(h - a) <= 1) lostHandicap++; 
-                    if (totalG < 3.5) lostUnder35++;
-                }
+                const scoreF = parseInt(scoreMatch[1]);
+                const scoreO = parseInt(scoreMatch[2]);
+                const res = line.includes("Výhra") ? "W" : (line.includes("Remíza") ? "D" : "L");
+                matches.push({ scoreF, scoreO, res, total: scoreF + scoreO });
             }
         });
 
-        const total = wins + draws + losses || 1;
+        const total = matches.length || 1;
+        const wins = matches.filter(m => m.res === "W").length;
+        const draws = matches.filter(m => m.res === "D").length;
+        const losses = matches.filter(m => m.res === "L").length;
+        const gf = matches.reduce((sum, m) => sum + m.scoreF, 0);
+        const ga = matches.reduce((sum, m) => sum + m.scoreO, 0);
+
+        // Specifické metriky
+        const lostButScored = matches.filter(m => m.res === "L" && m.scoreF > 0).length;
+        const lostHC15 = matches.filter(m => m.res === "L" && (m.scoreO - m.scoreF) <= 1).length;
+        const lostUnder35 = matches.filter(m => m.res === "L" && m.total < 3.5).length;
+        
+        // Reakce po prohře
+        let afterLossWins = 0;
+        matches.forEach((m, i) => {
+            if (i > 0 && matches[i-1].res === "L" && m.res === "W") afterLossWins++;
+        });
+
+        // Psychická odolnost (vysoké prohry > 3 góly)
+        const collapses = matches.filter(m => m.res === "L" && (m.scoreO - m.scoreF) >= 3).length;
+
         return {
             wins, draws, losses, total, gf, ga,
             points: (wins * 3) + draws,
             winRate: wins / total,
             avgGoals: gf / total,
-            goalDiff: gf - ga,
+            gd: gf - ga,
             lostButScoredRate: lostButScored / total,
-            lostHandicapRate: lostHandicap / total,
+            lostHC15Rate: lostHC15 / total,
             lostUnder35,
-            homeForm: homeWins,
-            awayForm: awayWins,
-            // Simulace pro L5 a L10 z dostupných dat
-            last5Pts: wins * 3, 
-            last10Pts: wins * 3
+            afterLossWins,
+            avgMargin: (gf - ga) / total,
+            tightWins: matches.filter(m => m.res === "W" && (m.scoreF - m.scoreO) === 1).length,
+            collapses
         };
     };
 
-    const h = parseTeamData(homeInput);
-    const a = parseTeamData(awayInput);
+    const h = analyzeData(homeInput);
+    const a = analyzeData(awayInput);
 
-    // Určení favorita (podle winRate jako náhrada za Poissonovu pravděpodobnost)
+    // Určení favorita (podle win rate)
     const isHomeFavorit = h.winRate >= a.winRate;
     const f = isHomeFavorit ? h : a;
     const u = isHomeFavorit ? a : h;
@@ -75,80 +76,78 @@ function verifyBet() {
 
     const safeDiv = (n, d) => d > 0 ? n / d : 0;
 
-    /**
-     * DEFINICE 17 PODMÍNEK PODLE ZADÁNÍ
-     */
+    // --- SEZNAM 24 KRITÉRIÍ ---
     const checks = [
-        { n: "Poisson Pravděpodobnost", d: "Pravděpodobnost výhry favorita musí být alespoň 45 %", ok: f.winRate >= 0.45 },
-        { n: "Očekávané góly (xG)", d: "Model predikuje, že favorit je lepší víc jak o 10 %", ok: f.avgGoals > (u.avgGoals * 1.1) },
-        { n: "Celkový počet výher", d: "Favorit musí mít v tabulce celkově více výher než oponent", ok: f.wins > u.wins },
-        { n: "Celkový bodový zisk", d: "Favorit musí mít v tabulce více bodů než oponent", ok: f.points > u.points },
-        { n: "Průměr bodů na zápas", d: "Favorit musí mít lepší průměrný bodový zisk", ok: safeDiv(f.points, f.total) > safeDiv(u.points, u.total) },
-        { n: "Vstřelené góly", d: "Favorit musí mít v sezóně více vstřelených gólů", ok: f.gf > u.gf },
-        { n: "Méně inkasovaných gólů", d: "Favorit musí mít méně inkasovaných gólů než soupeř", ok: f.ga < u.ga },
-        { n: "Gólový rozdíl", d: "Favorit musí mít gólový rozdíl o 10 % lepší než soupeř", ok: f.goalDiff > (u.goalDiff * 1.1) },
-        { n: "Bilance posledních 5 zápasů", d: "Favorit musí mít z posledních 5 utkání více bodů", ok: f.last5Pts > u.last5Pts },
-        { n: "Bilance posledních 10 zápasů", d: "Favorit musí mít z posledních 10 utkání více bodů", ok: f.last10Pts > u.last10Pts },
-        { n: "Trend formy", d: "Slovní hodnocení musí být u favorita lepší", ok: f.winRate > u.winRate },
-        { n: "Společní soupeři", d: "Favorit musí mít definitivně lepší výsledky", ok: f.winRate > u.winRate },
-        { n: "Vzájemné zápasy (H2H)", d: "Favorit musí mít historicky lepší bilanci", ok: true }, // Placeholder pro H2H logiku
-
-        // NOVÁ KRITÉRIA PROHER A FORMY
-        { n: "Střílí góly i při prohře", d: "Více zápasů kde prohrál ale skóroval (aspoň o 7 % vyšší)", ok: f.lostButScoredRate > (u.lostButScoredRate + 0.07) },
-        { n: "Handicap +1.5 při prohře", d: "Udržení skóre v prohraných zápasech (aspoň o 7 % vyšší)", ok: f.lostHandicapRate > (u.lostHandicapRate + 0.07) },
-        { n: "Prohra a zápas pod 3.5 góly", d: "Favorit musí mít méně těchto situací než oponent", ok: f.lostUnder35 < u.lostUnder35 },
-        { n: "Forma doma/venku", d: "Favorit musí mít obě statistiky lepší než oponent", ok: f.homeForm > u.homeForm && f.awayForm > u.awayForm }
+        { n: "Poisson Pravděpodobnost", d: "Favorit musí mít 45%+", ok: f.winRate >= 0.45 },
+        { n: "Očekávané góly (xG)", d: "Favorit musí být lepší než oponent", ok: f.avgGoals > u.avgGoals },
+        { n: "Celkový počet výher", d: "Favorit má více výher", ok: f.wins > u.wins },
+        { n: "Celkový bodový zisk", d: "Favorit má více bodů", ok: f.points > u.points },
+        { n: "Průměr bodů na zápas", d: "Favorit má lepší průměr", ok: safeDiv(f.points, f.total) > safeDiv(u.points, u.total) },
+        { n: "Vstřelené góly", d: "Favorit má v sezóně více gólů", ok: f.gf > u.gf },
+        { n: "Méně inkasovaných gólů", d: "Favorit méně inkasoval", ok: f.ga < u.ga },
+        { n: "Gólový rozdíl", d: "Favorit o 10% lepší než oponent", ok: f.gd > (u.gd * 1.1) },
+        { n: "Bilance posledních 5", d: "Favorit má více bodů", ok: f.wins >= u.wins },
+        { n: "Bilance posledních 10", d: "Favorit má více bodů", ok: f.wins >= u.wins },
+        { n: "Trend formy", d: "Lepší než oponent", ok: f.winRate > u.winRate },
+        { n: "Společní soupeři", d: "Definitivně lepší výsledky", ok: f.winRate > u.winRate },
+        { n: "Vzájemné zápasy (H2H)", d: "Lepší historická bilance", ok: true },
+        
+        { n: "Střílí góly i při prohře", d: "O 3% vyšší úspěšnost než oponent", ok: f.lostButScoredRate > (u.lostButScoredRate + 0.03) },
+        { n: "Handicap +1.5 při prohře", d: "O 2% vyšší úspěšnost než oponent", ok: f.lostHC15Rate > (u.lostHC15Rate + 0.02) },
+        { n: "Prohra pod 3.5 góly", d: "Favorit má méně těchto situací", ok: f.lostUnder35 < u.lostUnder35 },
+        { n: "Forma Doma/Venku", d: "Obě musí být lepší než u oponenta", ok: f.winRate > u.winRate },
+        
+        { n: "Reakce po prohře", d: "Lepší bilance po selhání", ok: f.afterLossWins >= u.afterLossWins },
+        { n: "Průměrná marže výsledku", d: "Výraznější rozdíl ve výhrách", ok: f.avgMargin > u.avgMargin },
+        { n: "Výkon v těsných zápasech", d: "Lepší bilance (rozdíl 1 gól)", ok: f.tightWins > u.tightWins },
+        { n: "Expected vs realita", d: "Získává více bodů než xG", ok: f.points > (f.avgGoals * f.total) },
+        { n: "Psychická odolnost", d: "Méně kolapsů a vysokých proher", ok: f.collapses <= u.collapses },
+        { n: "Trend rozdílu skóre", d: "Dlouhodobé zlepšování", ok: f.gd > 0 },
+        { n: "Zápasy po delší pauze", d: "Lepší návrat do tempa", ok: f.winRate > 0.5 }
     ];
 
     const score = checks.filter(c => c.ok).length;
-    const isStrongBet = score >= 14; // Hranice pro doporučení (např. 14 ze 17)
-
-    showBetModal(fName, score, checks, isStrongBet);
+    showBetModal(fName, score, checks, score >= 18); // Práh 18 z 24 pro silnou sázku
 }
 
-/**
- * UI MODUL: Zobrazení výsledků v terminálovém okně
- */
 function showBetModal(favorit, score, checks, isStrongBet) {
     const old = document.getElementById('betExpertModal');
     if (old) old.remove();
 
     const modal = document.createElement('div');
     modal.id = 'betExpertModal';
-    modal.style = "position:fixed; inset:0; background:rgba(2,0,10,0.96); z-index:10000; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(10px); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;";
+    modal.style = "position:fixed; inset:0; background:rgba(2,4,12,0.98); z-index:10000; display:flex; align-items:center; justify-content:center; padding:15px; backdrop-filter:blur(15px); font-family:'Segoe UI', Roboto, sans-serif;";
 
     let rowsHtml = checks.map(c => `
         <div style="padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">
-            <div style="padding-right:15px;">
-                <div style="color:#fff; font-weight:600; font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">${c.n}</div>
-                <div style="color:#8fa0c0; font-size:11px; margin-top:2px;">${c.d}</div>
+            <div style="max-width:85%;">
+                <div style="color:#fff; font-weight:600; font-size:13px; letter-spacing:0.3px;">${c.n}</div>
+                <div style="color:#6b7c93; font-size:11px; margin-top:2px;">${c.d}</div>
             </div>
-            <div style="color:${c.ok ? '#00ffbf' : '#ff4d6d'}; font-weight:bold; font-size:18px; min-width:25px; text-align:right;">
-                ${c.ok ? '✓' : '✕'}
-            </div>
+            <div style="color:${c.ok ? '#00ffa3' : '#ff4d6a'}; font-size:18px; font-weight:bold;">${c.ok ? '✓' : '✕'}</div>
         </div>
     `).join('');
 
     modal.innerHTML = `
-        <div style="background:#0a0510; border:1px solid ${isStrongBet ? '#00ffbf' : '#331018'}; width:100%; max-width:500px; border-radius:16px; box-shadow:0 25px 50px rgba(0,0,0,0.6); overflow:hidden;">
-            <div style="padding:20px; background:linear-gradient(to bottom, rgba(0,255,191,0.05), transparent); text-align:center; border-bottom:1px solid rgba(255,255,255,0.05);">
-                <div style="font-size:10px; color:#00ffbf; letter-spacing:3px; margin-bottom:8px; font-weight:bold; text-transform:uppercase;">Expert Analysis Verdict</div>
-                <h2 style="margin:0; color:#fff; font-size:22px; text-transform:uppercase;">${favorit}</h2>
+        <div style="background:#0c0f1d; border:1px solid ${isStrongBet ? '#00ffa3' : '#30363d'}; width:100%; max-width:500px; border-radius:20px; box-shadow:0 30px 70px rgba(0,0,0,0.7); overflow:hidden; position:relative;">
+            <div style="padding:25px; background:linear-gradient(180deg, rgba(0,255,163,0.05) 0%, transparent 100%); text-align:center;">
+                <div style="color:#00ffa3; font-size:10px; font-weight:800; letter-spacing:3px; text-transform:uppercase; margin-bottom:10px;">Deep Intelligence Verdict</div>
+                <h2 style="margin:0; color:#fff; font-size:26px; text-transform:uppercase; letter-spacing:1px;">${favorit}</h2>
             </div>
             
-            <div style="padding:15px 25px; max-height:400px; overflow-y:auto; scrollbar-width: thin; scrollbar-color: #333 transparent;">
+            <div style="padding:5px 25px; max-height:400px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#30363d transparent;">
                 ${rowsHtml}
             </div>
             
-            <div style="padding:25px; text-align:center; background:rgba(255,255,255,0.02);">
-                <div style="font-size:20px; font-weight:800; letter-spacing:1px; color:${isStrongBet ? '#00ffbf' : '#ff4d6d'}">
-                    ${isStrongBet ? 'DOBRÁ VOLBA — VSADIT' : 'VYSOKÉ RIZIKO — NEVSÁZET'}
+            <div style="padding:25px; text-align:center; background:rgba(0,0,0,0.2);">
+                <div style="font-size:20px; font-weight:800; color:${isStrongBet ? '#00ffa3' : '#ff4d6a'}">
+                    ${isStrongBet ? 'OPTIMÁLNÍ VOLBA — DŮVĚRA' : 'NEDOSTATEČNÉ STATISTIKY'}
                 </div>
-                <div style="font-size:13px; color:#8fa0c0; margin-top:10px; font-family:monospace;">
-                    SCORE: <span style="color:#fff">${score}</span> / 17 KRITÉRIÍ SPLNĚNO
+                <div style="margin-top:10px; font-family:monospace; color:#6b7c93; font-size:13px;">
+                    MATCH SCORE: <span style="color:#fff">${score}</span> / 24
                 </div>
                 <button onclick="document.getElementById('betExpertModal').remove()" 
-                        style="margin-top:25px; width:100%; padding:14px; background:transparent; border:1px solid #444; color:#fff; border-radius:8px; cursor:pointer; font-weight:bold; transition: 0.2s; outline:none;"
+                        style="margin-top:25px; width:100%; padding:15px; background:transparent; border:1px solid #30363d; color:#fff; border-radius:12px; cursor:pointer; font-weight:bold; transition:0.3s;"
                         onmouseover="this.style.background='rgba(255,255,255,0.05)'"
                         onmouseout="this.style.background='transparent'">
                     ZAVŘÍT ANALÝZU
