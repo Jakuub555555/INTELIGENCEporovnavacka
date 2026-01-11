@@ -1,6 +1,6 @@
 /**
- * MATCH INTELLIGENCE - BET EXPERT MODUL (PRO VERSION)
- * 22 analytických kritérií pro hloubkovou analýzu sázek.
+ * MATCH INTELLIGENCE - BET EXPERT MODUL (PRO AI VERSION)
+ * 22 analytických kritérií + Generátor hloubkového reportu pro AI
  */
 
 function verifyBet() {
@@ -13,12 +13,13 @@ function verifyBet() {
     }
 
     // --- INTERNÍ PARSER PRO EXTRÉMNĚ DETAILNÍ DATA ---
-    const parseData = (text) => {
+    const parseData = (text, label) => {
         const lines = text.split('\n');
         let matches = [];
+        let rawMatches = [];
         let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0;
         let lostButScored = 0, lostHandicap = 0, lostUnder35 = 0;
-        let leadLost = 0, heavyDefeats = 0; // Psychická odolnost
+        let heavyDefeats = 0;
 
         lines.forEach(line => {
             const scoreMatch = line.match(/(\d+)-(\d+)/);
@@ -29,6 +30,7 @@ function verifyBet() {
                 const totalG = h + a;
                 const res = line.includes("Výhra") ? "W" : (line.includes("Remíza") ? "D" : "L");
                 
+                rawMatches.push(line.trim());
                 matches.push({ res, h, a, diff, totalG });
 
                 if (res === "W") { wins++; gf += h; ga += a; }
@@ -46,7 +48,6 @@ function verifyBet() {
         const total = matches.length || 1;
         const pts = (wins * 3) + draws;
         
-        // Reakce po prohře: Body získané v zápasech následujících hned po prohře
         let afterLossPts = 0, afterLossCount = 0;
         for(let i = 0; i < matches.length - 1; i++) {
             if (matches[i].res === "L") {
@@ -57,6 +58,7 @@ function verifyBet() {
         }
 
         return {
+            label,
             wins, draws, losses, total, gf, ga, pts,
             avgPts: pts / total,
             avgGF: gf / total,
@@ -67,21 +69,20 @@ function verifyBet() {
             lostUnder35,
             afterLossRate: afterLossCount > 0 ? afterLossPts / afterLossCount : 0,
             heavyDefeats,
+            rawMatches,
             last5: matches.slice(-5).reduce((acc, m) => acc + (m.res === "W" ? 3 : (m.res === "D" ? 1 : 0)), 0),
             last10: matches.slice(-10).reduce((acc, m) => acc + (m.res === "W" ? 3 : (m.res === "D" ? 1 : 0)), 0)
         };
     };
 
-    const h = parseData(homeInput);
-    const a = parseData(awayInput);
+    const h = parseData(homeInput, "DOMÁCÍ TÝM");
+    const a = parseData(awayInput, "HOSTUJÍCÍ TÝM");
 
-    // Určení favorita podle průměru bodů
     const isHomeFavorit = h.avgPts >= a.avgPts;
     const f = isHomeFavorit ? h : a;
     const u = isHomeFavorit ? a : h;
     const fName = isHomeFavorit ? "DOMÁCÍ" : "HOSTÉ";
 
-    // --- 22 PODMÍNEK PODLE ZADÁNÍ ---
     const checks = [
         { n: "Poisson Pravděpodobnost", d: "Minimálně 45%", ok: f.winRate >= 0.45 },
         { n: "Očekávané góly (xG)", d: "Favorit lepší než oponent", ok: f.avgGF > u.avgGF },
@@ -109,6 +110,33 @@ function verifyBet() {
     ];
 
     const score = checks.filter(c => c.ok).length;
+
+    // Generování hloubkového AI reportu
+    const generateAIReport = () => {
+        let r = `=== HLOUBKOVÁ ANALÝZA SÁZKY: ${fName} ===\n`;
+        r += `Celkové skóre: ${score} / 23\n\n`;
+        
+        [h, a].forEach(t => {
+            r += `--- DATA: ${t.label} ---\n`;
+            r += `Zápasy celkem: ${t.total} (W:${t.wins} D:${t.draws} L:${t.losses})\n`;
+            r += `Skóre: ${t.gf}:${t.ga} (Rozdíl: ${t.gf-t.ga})\n`;
+            r += `Průměr bodů: ${t.avgPts.toFixed(2)}\n`;
+            r += `Prohry pod 3.5 g: ${t.lostUnder35}\n`;
+            r += `Prohry s gólom: ${t.lostButScored}\n`;
+            r += `Prohry HC +1.5: ${t.lostHandicap}\n`;
+            r += `Počet debaklů: ${t.heavyDefeats}\n`;
+            r += `Návrat po prohře (avg pts): ${t.afterLossRate.toFixed(2)}\n`;
+            r += `SEZNAM ZÁPASŮ:\n${t.rawMatches.join('\n')}\n\n`;
+        });
+
+        r += `--- DETAILNÍ KRITÉRIA ---\n`;
+        checks.forEach(c => r += `[${c.ok ? 'ANO' : 'NE'}] ${c.n}: ${c.d}\n`);
+        
+        navigator.clipboard.writeText(r);
+        alert("Kompletní report se všemi daty a zápasy byl zkopírován do schránky!");
+    };
+
+    window.copyAIReport = generateAIReport;
     showBetModal(fName, score, checks, score >= 17);
 }
 
@@ -137,22 +165,26 @@ function showBetModal(favorit, score, checks, isStrongBet) {
                 <h2 style="margin:0; color:#fff; font-size:26px; text-transform:uppercase;">${favorit}</h2>
             </div>
             
-            <div style="padding:10px 30px; max-height:400px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#00f6ff #0a0b1e;">
+            <div style="padding:10px 30px; max-height:350px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#00f6ff #0a0b1e;">
                 ${rowsHtml}
             </div>
             
-            <div style="padding:30px; text-align:center; background:rgba(0,0,0,0.3);">
-                <div style="font-size:20px; font-weight:800; color:${isStrongBet ? '#00f6ff' : '#ff3366'}">
+            <div style="padding:25px; text-align:center; background:rgba(0,0,0,0.3);">
+                <div style="font-size:18px; font-weight:800; color:${isStrongBet ? '#00f6ff' : '#ff3366'}">
                     ${isStrongBet ? 'SCHVÁLENO — VSADIT' : 'NEDOSTATEČNÁ FORMACE'}
                 </div>
-                <div style="color:#a0aec0; font-size:13px; margin-top:10px; font-family:monospace;">
-                    SCORE: ${score} / 23 ANALYTICKÝCH BODŮ
+                <div style="color:#a0aec0; font-size:12px; margin:8px 0; font-family:monospace;">
+                    SCORE: ${score} / 23 BODY
                 </div>
+                
+                <button onclick="copyAIReport()" 
+                        style="width:100%; padding:12px; background:#00f6ff; border:none; color:#000; border-radius:8px; cursor:pointer; font-weight:bold; text-transform:uppercase; margin-bottom:10px; font-size:11px;">
+                    📋 Kopírovat report pro AI (Všechna data)
+                </button>
+
                 <button onclick="document.getElementById('betExpertModal').remove()" 
-                        style="margin-top:25px; width:100%; padding:15px; background:transparent; border:1px solid #00f6ff; color:#00f6ff; border-radius:10px; cursor:pointer; font-weight:bold; text-transform:uppercase; transition:0.3s;"
-                        onmouseover="this.style.background='rgba(0,246,255,0.1)'"
-                        onmouseout="this.style.background='transparent'">
-                    Zavřít hloubkovou analýzu
+                        style="width:100%; padding:12px; background:transparent; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:8px; cursor:pointer; font-weight:bold; text-transform:uppercase; font-size:11px;">
+                    Zavřít analýzu
                 </button>
             </div>
         </div>
